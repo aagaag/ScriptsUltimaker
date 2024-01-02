@@ -1,57 +1,48 @@
-#!/usr/bin/python3
-### BEGIN INIT INFO
-# Provides:          pause_alert.py
-# Required-Start:    $remote_fs $syslog
-# Required-Stop:     $remote_fs $syslog
-# Default-Start:     2 3 4 5
-# Default-Stop:      0 1 6
-# Short-Description: Start daemon at boot time
-# Description:       Enable service provided by daemon.
-### END INIT INFO
-
-import systemd.journal
-import socket
-from time import sleep
+import os
+import base64
 import smtplib
-import email
-from smtplib import SMTP
-from email.message import EmailMessage
-import datetime
+from email.mime.text import MIMEText
 
+# Function to encode and save credentials
+def save_credentials(user_id, password, file_path):
+    encoded_user_id = base64.b64encode(user_id.encode()).decode()
+    encoded_password = base64.b64encode(password.encode()).decode()
+    with open(file_path, 'w') as file:
+        file.write(f"{encoded_user_id}\n{encoded_password}")
 
-def main():
-  j = systemd.journal.Reader()
-  j.seek_tail()
-  j.get_previous()
-  while True:
-    event = j.wait(1000000)
-    if event == systemd.journal.APPEND:
-      for entry in j:
-         print (entry['MESSAGE'] + " " + str(datetime.datetime.now()))
-         alertmail(entry['MESSAGE'])
+# Function to read and decode credentials
+def read_credentials(file_path):
+    with open(file_path, 'r') as file:
+        encoded_user_id, encoded_password = file.read().split('\n')
+        user_id = base64.b64decode(encoded_user_id.encode()).decode()
+        password = base64.b64decode(encoded_password.encode()).decode()
+        return user_id, password
 
-def alertmail(logEntry):
-    # returns first occurrence of Substring
-    trigger_text = 'pause'
-    result = logEntry.find(trigger_text)
-    if (logEntry.find(trigger_text) != -1):
-        print ("Contains '" + trigger_text + "' at index:", result)
-        msg = EmailMessage()
-        msg.set_content(str(datetime.datetime.now()) + " \n " + logEntry)
-        msg['Subject'] = ' '.join(logEntry[24:].split())
-        msg['From'] = "ultimaker@mail.bellariastrasse.com"
-        msg['To'] = "adriano.aguzzi@usz.ch"
+# Main script
+credentials_file = 'credentials.txt'
 
-        smtp = smtplib.SMTP('mail.bellariastrasse.com', port='587')
-        smtp.ehlo()  # send the extended hello to our server
-        smtp.starttls()  # tell server we want to communicate with TLS encryption
-        smtp.login('ultimaker@mail.bellariastrasse.com', 'scrap10')  # login to our email server
+# Check if credentials file exists
+if not os.path.exists(credentials_file):
+    user_id = input("Enter your user ID: ")
+    password = input("Enter your password: ")
+    save_credentials(user_id, password, credentials_file)
 
-        # send our email message 'msg' to our boss
-        smtp.send_message(msg)
-        smtp.quit()  # finally, don't forget to close the connection
-    else:
-        print ("Doesn't contain substring '" + trigger_text +"'")
+user_id, password = read_credentials(credentials_file)
 
-if __name__ == '__main__':
-    main()
+# Email sending logic using SMTP_SSL for secure connection
+recipient = "adriano.aguzzi@usz.ch"
+subject = "Test Email"
+body = "This is a test email sent from Python."
+
+message = MIMEText(body)
+message['From'] = user_id
+message['To'] = recipient
+message['Subject'] = subject
+
+# Connect to the SMTP server using SSL
+server = smtplib.SMTP_SSL('smtpauths.bluewin.ch', 465)
+server.login(user_id, password)
+server.sendmail(user_id, recipient, message.as_string())
+server.quit()
+
+print("Email sent successfully!")
