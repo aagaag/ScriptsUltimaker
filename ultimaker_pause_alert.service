@@ -1,0 +1,79 @@
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides:          pause_alert.sh
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Start daemon at boot time
+# Description:       Enable service provided by daemon.
+### END INIT INFO
+
+PYTHON_SCRIPT="email_script.py"
+CREDENTIALS_FILE="credentials.txt"
+
+# Function to check if we are running in interactive mode
+is_interactive() {
+    tty -s
+}
+
+# Create the Python script if it doesn't exist
+if [ ! -f "$PYTHON_SCRIPT" ]; then
+    cat > $PYTHON_SCRIPT << 'EOF'
+#!/usr/bin/env python3
+import os
+import sys
+import base64
+import smtplib
+from email.mime.text import MIMEText
+
+# Function to encode and save credentials
+def save_credentials(user_id, password, file_path):
+    # ... [same as before]
+
+# Function to read and decode credentials
+def read_credentials(file_path):
+    # ... [same as before]
+
+# Function to send email
+def send_email(user_id, password, recipient, subject, body):
+    message = MIMEText(body)
+    message['From'] = user_id
+    message['To'] = recipient
+    message['Subject'] = subject
+
+    server = smtplib.SMTP_SSL('smtpauths.bluewin.ch', 465)
+    server.login(user_id, password)
+    server.sendmail(user_id, recipient, message.as_string())
+    server.quit()
+
+def main():
+    if not os.path.exists("credentials.txt"):
+        if sys.stdin.isatty():
+            user_id = input("Enter your user ID: ")
+            password = input("Enter your password: ")
+            save_credentials(user_id, password, "credentials.txt")
+        else:
+            print("Credentials file not found. Please run the script interactively to create it.")
+            sys.exit(1)
+
+    user_id, password = read_credentials("credentials.txt")
+
+    recipient = "recipient@example.com"
+    subject = "Alert from pause_alert.py"
+    body = "This is an alert email sent from pause_alert.py script."
+
+    send_email(user_id, password, recipient, subject, body)
+
+if __name__ == "__main__":
+    main()
+EOF
+    chmod +x $PYTHON_SCRIPT
+fi
+
+# Execute the Python script if we are in interactive mode or if the credentials file exists
+if is_interactive || [ -f "$CREDENTIALS_FILE" ]; then
+    ./$PYTHON_SCRIPT
+else
+    echo "Not running in interactive mode and credentials file not found."
+fi
