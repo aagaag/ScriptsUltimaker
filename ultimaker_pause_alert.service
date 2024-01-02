@@ -29,11 +29,18 @@ from email.mime.text import MIMEText
 
 # Function to encode and save credentials
 def save_credentials(user_id, password, file_path):
-    # ... [same as before]
+    encoded_user_id = base64.b64encode(user_id.encode()).decode()
+    encoded_password = base64.b64encode(password.encode()).decode()
+    with open(file_path, 'w') as file:
+        file.write(f"{encoded_user_id}\n{encoded_password}")
 
 # Function to read and decode credentials
 def read_credentials(file_path):
-    # ... [same as before]
+    with open(file_path, 'r') as file:
+        encoded_user_id, encoded_password = file.read().split('\n')
+        user_id = base64.b64decode(encoded_user_id.encode()).decode()
+        password = base64.b64decode(encoded_password.encode()).decode()
+        return user_id, password
 
 # Function to send email
 def send_email(user_id, password, recipient, subject, body):
@@ -72,8 +79,4 @@ EOF
 fi
 
 # Execute the Python script if we are in interactive mode or if the credentials file exists
-if is_interactive || [ -f "$CREDENTIALS_FILE" ]; then
-    ./$PYTHON_SCRIPT
-else
-    echo "Not running in interactive mode and credentials file not found."
-fi
+if is_interactive || [ -f "$C
